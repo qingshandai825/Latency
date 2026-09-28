@@ -1,0 +1,207 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindowLi</class>
+ <widget class="QMainWindow" name="MainWindowLi">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>925</width>
+    <height>560</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>sender_gui</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_protocol">
+        <property name="text">
+         <string>协议类型：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="protocolCombo"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_ip">
+        <property name="text">
+         <string>地址：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="ipEdit"/>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_port">
+        <property name="text">
+         <string>端口号：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="portSpin"/>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_pktSize">
+        <property name="text">
+         <string>分组大小：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLineEdit" name="sizeLineEdit">
+        <property name="text">
+         <string>1000</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="label_bw">
+        <property name="text">
+         <string>带宽占用：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="bandwidthCombo"/>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="label_retry">
+        <property name="text">
+         <string>最大重传：</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QSpinBox" name="retrySpin"/>
+      </item>
+      <item row="8" column="0" colspan="2">
+       <layout class="QVBoxLayout" name="buttonLayout">
+        <item>
+         <widget class="QPushButton" name="startButton">
+          <property name="text">
+           <string>启动</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="stopButton">
+          <property name="text">
+           <string>停止</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="clearChartButton">
+          <property name="text">
+           <string>清空图表</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="retransmitCheck">
+          <property name="text">
+           <string>模拟TCP丢包重传</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="instantProbeButton">
+          <property name="text">
+           <string>瞬时测量</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="9" column="0" colspan="2">
+       <widget class="QLabel" name="statusLabel">
+        <property name="text">
+         <string>已停止</string>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="0" colspan="2">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>异常处理时延阈值:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>超过阈值次数:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="QSpinBox" name="spinBoxThresholdCount">
+        <property name="value">
+         <number>3</number>
+        </property>
+       </widget>
+      </item>
+      <item row="11" column="0">
+       <widget class="QPushButton" name="startBgButton">
+        <property name="text">
+         <string>PushButton</string>
+        </property>
+       </widget>
+      </item>
+      <item row="11" column="1">
+       <widget class="QPushButton" name="stopBgButton">
+        <property name="text">
+         <string>PushButton</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QDoubleSpinBox" name="spinBoxDelayThreshold">
+        <property name="maximum">
+         <double>10000.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QTabWidget" name="chartTabs">
+      <property name="minimumSize">
+       <size>
+        <width>700</width>
+        <height>500</height>
+       </size>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>925</width>
+     <height>20</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

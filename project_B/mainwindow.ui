@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QWidget" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>672</width>
+    <height>550</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="3">
+    <widget class="QLabel" name="label">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="text">
+      <string>转发目的端口</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="24" column="0">
+    <widget class="QLabel" name="label_7">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="3">
+    <widget class="QLabel" name="label_2">
+     <property name="text">
+      <string>监听端口</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="2">
+    <widget class="QSpinBox" name="spinBoxThresholdCount">
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="3">
+    <widget class="QLabel" name="label_3">
+     <property name="text">
+      <string>超过阈值次数</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="22" column="0">
+    <widget class="QLabel" name="label_8">
+     <property name="text">
+      <string>TextLabel</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="0">
+    <widget class="QLineEdit" name="ipEdit">
+     <property name="text">
+      <string>127.0.0.1</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="placeholderText">
+      <string>IP 地址</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="2">
+    <widget class="QLineEdit" name="connectPortEdit">
+     <property name="text">
+      <string>6000</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="placeholderText">
+      <string>连接端口</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="2">
+    <widget class="QLineEdit" name="lineEdit">
+     <property name="text">
+      <string>127.0.0.1</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="label_10">
+     <property name="text">
+      <string>转发目的IP地址</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="17" column="2" colspan="2">
+    <widget class="QPushButton" name="listenButton">
+     <property name="text">
+      <string>启动监听</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="3">
+    <widget class="QLabel" name="label_12">
+     <property name="text">
+      <string>距离(km)</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="23" column="0">
+    <widget class="QLabel" name="label_6">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="2">
+    <widget class="QComboBox" name="delayModeCombo">
+     <property name="cursor">
+      <cursorShape>ArrowCursor</cursorShape>
+     </property>
+     <property name="layoutDirection">
+      <enum>Qt::LeftToRight</enum>
+     </property>
+     <property name="iconSize">
+      <size>
+       <width>16</width>
+       <height>16</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+   <item row="19" column="2" colspan="2">
+    <widget class="QPushButton" name="stopListenButton">
+     <property name="text">
+      <string>停止监听</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="2">
+    <widget class="QLineEdit" name="udpfeedbackPort">
+     <property name="text">
+      <string>5001</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="2" colspan="2">
+    <widget class="QPushButton" name="connectButton">
+     <property name="text">
+      <string>连接主机C</string>
+     </property>
+    </widget>
+   </item>
+   <item row="15" column="2" colspan="2">
+    <widget class="QPushButton" name="disconnectButton">
+     <property name="text">
+      <string>断开连接</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="2">
+    <widget class="QDoubleSpinBox" name="spinBoxDelayThreshold">
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="decimals">
+      <number>1</number>
+     </property>
+     <property name="maximum">
+      <double>10000.000000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="2">
+    <widget class="QSpinBox" name="distanceSpinBox">
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="3">
+    <widget class="QLabel" name="label_9">
+     <property name="text">
+      <string>反馈目的IP地址</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="2">
+    <widget class="QLineEdit" name="listenPortEdit">
+     <property name="text">
+      <string>5000</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="placeholderText">
+      <string>监听端口</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="3">
+    <widget class="QLabel" name="label_11">
+     <property name="text">
+      <string>延迟模式</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="21" column="2" colspan="2">
+    <widget class="QPushButton" name="pushButtonClearLog">
+     <property name="text">
+      <string>清除日志</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0" rowspan="20">
+    <widget class="QPlainTextEdit" name="statusBrowser"/>
+   </item>
+   <item row="5" column="3">
+    <widget class="QLabel" name="label_4">
+     <property name="text">
+      <string>异常处理时延阈值</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="3">
+    <widget class="QLabel" name="label_5">
+     <property name="text">
+      <string>反馈目的端口</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="2">
+    <widget class="QComboBox" name="comboBoxProtocolListen">
+     <property name="layoutDirection">
+      <enum>Qt::LeftToRight</enum>
+     </property>
+     <property name="autoFillBackground">
+      <bool>false</bool>
+     </property>
+     <property name="currentText">
+      <string/>
+     </property>
+     <property name="placeholderText">
+      <string>选择要转发的数据包类型</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ForwarderWindow</class>
+ <widget class="QWidget" name="ForwarderWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>555</width>
+    <height>442</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>TCP Forwarder</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayoutMain">
+   <item>
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="labelSenderPort">
+       <property name="text">
+        <string>发送端监听端口:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLineEdit" name="senderPortEdit"/>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="labelReceiverIp">
+       <property name="text">
+        <string>接收端IP地址:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLineEdit" name="receiverIpEdit"/>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="labelReceiverPort">
+       <property name="text">
+        <string>接收端TCP端口:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QLineEdit" name="receiverPortEdit"/>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>异常处理时延阈值:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0">
+      <widget class="QLabel" name="label_2">
+       <property name="text">
+        <string>超过阈值次数:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QSpinBox" name="spinBoxAbnormalCount"/>
+     </item>
+     <item row="3" column="1">
+      <widget class="QDoubleSpinBox" name="spinBoxElapsedThreshold"/>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayoutButtons">
+     <item>
+      <widget class="QPushButton" name="startButton">
+       <property name="text">
+        <string>启动转发</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="stopButton">
+       <property name="text">
+        <string>停止转发</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QTextEdit" name="logTextEdit">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QFormLayout" name="formLayoutStatus">
+     <item row="0" column="0">
+      <widget class="QLabel" name="labelSenderPacketCountText">
+       <property name="text">
+        <string>发送端接收包数量:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLabel" name="senderPacketCountLabel">
+       <property name="text">
+        <string>0</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="labelForwardPacketCountText">
+       <property name="text">
+        <string>转发包数量:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLabel" name="forwardPacketCountLabel">
+       <property name="text">
+        <string>0</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="labelReceiverStatusText">
+       <property name="text">
+        <string>接收端连接状态:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QLabel" name="receiverStatusLabel">
+       <property name="text">
+        <string>❌ 未连接</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="alarmLabel">
+       <property name="text">
+        <string>TextLabel</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>mainwindowmid</class>
+ <widget class="QWidget" name="mainwindowmid">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1268</width>
+    <height>753</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <widget class="QWidget" name="widget" native="true">
+   <property name="geometry">
+    <rect>
+     <x>-1</x>
+     <y>-1</y>
+     <width>701</width>
+     <height>751</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QWidget" name="widget2" native="true">
+   <property name="geometry">
+    <rect>
+     <x>700</x>
+     <y>0</y>
+     <width>561</width>
+     <height>741</height>
+    </rect>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
