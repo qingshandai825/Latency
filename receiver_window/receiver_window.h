@@ -10,6 +10,8 @@
 #include <QLineSeries>
 #include <QValueAxis>
 #include <QFile>
+#include <QTemporaryFile>
+#include <QSharedPointer>
 #include <QQueue>
 #include <QLineEdit>
 #include <QPushButton>
@@ -52,10 +54,13 @@ private slots:
     void onAbnormalCountChanged(int count);
 
 private:
+    struct PacketInfo;
     void setupUI();
     bool isValidLocalAddress(const QHostAddress &addr);
     bool configureSocket(const QHostAddress &listenAddr, quint16 port, const QString &protocol);
     void resetFileReceiving();
+    void handleFilePacket(const PacketInfo &info);
+    void failFileTransfer(quint32 batchNumber, const QString &reason);
     void updatePacketLossRate();
     void addPacketToTable(quint64 counter, const QHostAddress &sender, quint16 port,
                           quint64 sequence, qint64 timestamp, double latencyMs,
@@ -76,7 +81,7 @@ private:
     QComboBox *m_protocolCombo;
     QPushButton *m_startButton;
     QPushButton *m_stopButton;
-    //QPushButton *m_saveFileButton;
+    QPushButton *m_saveFileButton;
     QLabel *m_statusLabel;
     QLabel *m_packetLossLabel;
     QLabel *m_alertStatusLabel;  // 告警状态显示
@@ -90,10 +95,11 @@ private:
     quint64 m_expectedSequence;
     quint64 m_firstSequence;
     bool m_isReceivingFile;
-    QFile m_file;
-    quint64 m_fileSize;
-    quint64 m_receivedSize;
-    QString m_fileName;
+    struct CompletedFile {
+        QString fileName;
+        QSharedPointer<QTemporaryFile> tempFile;
+    };
+    QQueue<CompletedFile> m_completedFiles;
     quint64 m_latencyPointIndex;
     HighResClock m_clock;
     QComboBox *m_bandwidthSelector;
@@ -108,14 +114,30 @@ private:
         qint64 timestamp;
         double latencyMs;
         bool isFilePacket;
+        bool isFileHeader;
         QByteArray fileData;
         quint8 priority;
         qint64 enqueueTime;       // 纳秒级入队时间
         quint32 batchNumber;      // 批次号
+        quint32 totalPacketCount;
         QTcpSocket* clientSocket = nullptr;           // TCP 使用
         QHostAddress senderAddress;                   // UDP 使用
         quint32 packetSize; // 新增：记录整个数据包大小
     };
+    struct FileTransfer {
+        bool headerReceived = false;
+        quint64 headerSequence = 0;
+        quint32 totalPackets = 0;
+        quint32 writtenPackets = 0;
+        quint64 fileSize = 0;
+        quint64 writtenBytes = 0;
+        quint64 bufferedBytes = 0;
+        QString fileName;
+        QMap<quint64, QByteArray> pendingChunks;
+        QSharedPointer<QTemporaryFile> tempFile;
+    };
+    QHash<quint32, FileTransfer> m_fileTransfers;
+    QHash<quint32, QPair<quint64, quint64>> m_completedRanges;
     QQueue<PacketInfo> m_priorityQueues[4];
     int m_queueLengths[4];
     double m_totalQueueDelay[4];
@@ -136,7 +158,7 @@ private:
         quint32 totalPacketCount = 0;   // 该批次总包数
         quint32 receivedPacketCount = 0;   // 当前接收包数
         quint32 processedPacketCount = 0;  // 当前处理包数
-        qint64 processingStartTime = 0; // 处理开始时间
+        qint64 processingNs = 0; // 本地逐包处理时间，不含限速造成的到包间隔
     };
 
     QMap<quint32, BatchInfo> m_batchMap;  // key: 批次号，value: 该批次统计数据

@@ -5,6 +5,9 @@
 #include <QVector>
 #include <QPair>
 #include <QVariantMap>
+#include <QFile>
+#include <QTimer>
+#include <QElapsedTimer>
 #include "traffic_generator.h"
 #include "packet_scheduler.h"
 #include "delayinjector.h"
@@ -36,28 +39,46 @@ signals:
     void delayStatsUpdatedUDP(qint64 aDuration, float bDurationMs, float cDurationMs);
 
 private slots:
-    void onPacketSentByScheduler(const QByteArray &packet, const QHostAddress &address, quint16 port, quint64 timestamp);
+    void pumpPackets();
+    void onPacketDispatched();
     void onFeedbackReceivedTCP(const QByteArray &feedbackData);
     void onFeedbackReceivedUDP(const QByteArray &feedbackData);
 
 private:
     void checkDelayAbnormal(qint64 totalDuration);
+    void beginPacing(const QVariantMap &params);
     TrafficGenerator *m_generator;
     PacketScheduler *m_scheduler;
     DelayInjector *m_delayInjector;
     QVariantMap m_currentConfig;
     QList<QPair<QHostAddress, quint16>> m_targets;
-    qint64 m_startTime = 0;
-    quint32 m_sentPacketCount = 0;
-    quint32 m_expectedPacketCount = 0;
-    double m_totalDuration;
-    double totalDuration;
+    QElapsedTimer m_jobClock;
+    quint64 m_sentPacketCount = 0;
+    quint64 m_sentBytes = 0;
+    qint64 m_activeProcessingNs = 0;
+    quint64 m_expectedPacketCount = 0;
+    double m_totalDuration = 0;
+    double totalDuration = 0;
     qint64 totalDurationWithDecimals = 0;
     double m_testTotalMs = 0;
     double m_fileTotalDuration = 0;
     bool m_isTcpMode = false;
     quint32 m_batchTest = 0;
     quint32 m_batchFile = 0;
+    quint32 m_nextBatch = 0;
+    bool m_active = false;
+    bool m_fileMode = false;
+    bool m_productionDone = false;
+    bool m_sendFailure = false;
+    QFile m_file;
+    QString m_fileName;
+    quint64 m_fileSize = 0;
+    quint32 m_jobPacketSize = 0;
+    quint32 m_jobTotalPackets = 0;
+    quint32 m_nextPacket = 0;
+    quint32 m_jobBatch = 0;
+    quint64 m_jobDelayNs = 0;
+    QTimer *m_producerTimer = nullptr;
     int m_delayThreshold = 100;
     int m_abnormalCountThreshold = 3;
     int m_abnormalDelayCount = 0;

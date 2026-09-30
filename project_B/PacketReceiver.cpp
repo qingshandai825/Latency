@@ -88,6 +88,7 @@ void PacketReceiver::processBuffer()
             break; // 等待更多数据
         }
 
+        const qint64 packetWorkStartNs = currentSystemTimeNs();
         // 1. 提取原始包体（包含头部、负载、CRC）
         QByteArray packetData = tcpBuffer.mid(4, packetLen);
 
@@ -139,10 +140,7 @@ void PacketReceiver::processBuffer()
 
         // 8. 读取更新后的aTimestamp（用于后续延迟计算和日志）
         qint64 aTimestamp = newATimestamp; // 直接使用刚才生成的新时间戳，避免重复解析
-        QByteArray payload = packetData.mid(HEADER_SIZE, payloadSize);
-        batchPayloads[batchNumber].append(payload);
-
-        processBatchInfo(batchNumber, totalPacketCount);
+        processBatchInfo(batchNumber, totalPacketCount, currentSystemTimeNs() - packetWorkStartNs);
 
         // 9. 计算延迟（基于更新后的aTimestamp）
         qint64 bTimestamp = currentSystemTimeNs();
@@ -209,6 +207,7 @@ void PacketReceiver::processUdpBuffer()
             return;
         }
 
+        const qint64 packetWorkStartNs = currentSystemTimeNs();
         // 5. 提取完整数据包（从缓冲区头部截取）
         QByteArray packet = udpBuffer.left(totalPacketSize);
 
@@ -241,7 +240,7 @@ void PacketReceiver::processUdpBuffer()
         // 11. 解析批次信息，更新批次状态
         quint32 totalPacketCount = qFromBigEndian<quint32>(reinterpret_cast<const uchar*>(packet.constData() + 24));
         quint32 batchNumber = qFromBigEndian<quint32>(reinterpret_cast<const uchar*>(packet.constData() + 28));
-        processBatchInfo(batchNumber, totalPacketCount);
+        processBatchInfo(batchNumber, totalPacketCount, currentSystemTimeNs() - packetWorkStartNs);
 
         // 12. 读取更新后的aTimestamp（直接用新生成的值，避免重复解析）
         qint64 aTimestamp = newATimestamp;
@@ -274,7 +273,7 @@ void PacketReceiver::setAbnormalThreshold(qint64 threshold)
     abnormalThreshold = threshold;
 }
 
-void PacketReceiver::processBatchInfo(quint32 batchNumber, quint32 totalPacketCount)
+void PacketReceiver::processBatchInfo(quint32 batchNumber, quint32 totalPacketCount, qint64 localProcessingNs)
 {
     qint64 nowNs = currentSystemTimeNs();
     qDebug() << "nowNs:" << nowNs;
@@ -284,6 +283,7 @@ void PacketReceiver::processBatchInfo(quint32 batchNumber, quint32 totalPacketCo
         batchTotalPacketCount = totalPacketCount;
         batchPacketCount = 1;
         batchStartTimeNs = nowNs;
+        batchProcessingNs = 0;
 
         qDebug() << "batchStartTimeNs:" << batchStartTimeNs;
 
@@ -296,28 +296,22 @@ void PacketReceiver::processBatchInfo(quint32 batchNumber, quint32 totalPacketCo
                         .arg(batchTotalPacketCount);
     }
 
+    batchProcessingNs += qMax<qint64>(0, localProcessingNs);
     if (batchPacketCount == batchTotalPacketCount && totalPacketCount > 0) {
-        if (forwardAddr != QHostAddress::Null && forwardPort != 0) {
-            QByteArray accumulatedPayload = batchPayloads[batchNumber];
-            qint64 bytesWritten = udpForwardSocket->writeDatagram(accumulatedPayload, forwardAddr, forwardPort);
-            if (bytesWritten == -1) {
-                qWarning() << "转发失败: " << udpForwardSocket->errorString();
-            } else {
-                qDebug() << QString("批次 %1 已转发 %2 字节").arg(batchNumber).arg(bytesWritten);
-            }
-        }
-        batchPayloads.remove(batchNumber);
+        // 完整协议包已由 packetReceived/tcpPacketsProcessed 逐包转发。
+        // 这里不能把裸 payload 拼成一个 UDP 包，否则 C 端无法按协议解析。
 
-        qint64 endNs = currentSystemTimeNs();
-        double elapsedMs = (endNs - batchStartTimeNs + appendTimeNs) / 1e6; // 修改：加上 append 耗时
+        // 目标速率控制会拉开到包间隔，不能把等待下一个包的时间算作 B 处理耗时。
+        double elapsedMs = batchProcessingNs / 1e6;
         emit batchProcessingTime(batchNumber, elapsedMs);
-        qDebug() << QString("批次 %1 处理完成，耗时 %2 ms（包含 append 耗时）").arg(batchNumber).arg(elapsedMs, 0, 'f', 6);
+        qDebug() << QString("批次 %1 本地处理耗时 %2 ms").arg(batchNumber).arg(elapsedMs, 0, 'f', 6);
         qDebug()<<"elapsedMs"<<elapsedMs;
         qDebug()<<"appendTimeNs"<<appendTimeNs;
 
         batchPacketCount = 0;
         batchTotalPacketCount = 0;
         currentBatchNumber = 0;
+        batchProcessingNs = 0;
         appendTimeNs = 0; // 重置 append 耗时
     }
 }

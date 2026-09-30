@@ -5,6 +5,8 @@
 #include <QQueue>
 #include <QVector>
 #include <QHostAddress>
+#include <QElapsedTimer>
+#include <functional>
 #include "high_res_clock.h"
 
 class PacketScheduler : public QObject {
@@ -21,9 +23,14 @@ public:
     void setSchedulingAlgorithm(SchedulingAlgorithm algorithm);
     // 设置优先级分布
     void setPriorityDistribution(PriorityDistribution distribution);
-    // 调度数据包，新增优先级参数
-    void schedulePacket(qint64 sendTime, const QByteArray &packet,
-                        const QHostAddress &dest, quint16 port, quint64 delayNs, quint8 priority);
+    void setRateMbps(double mbps);
+    void setFixedIntervalMs(int intervalMs);
+    void setTcpMode(bool tcpMode) { m_tcpMode = tcpMode; }
+    void setDispatcher(const std::function<bool(const QByteArray &, const QHostAddress &, quint16, quint64)> &dispatcher);
+    void schedulePacket(const QByteArray &packet, const QHostAddress &dest,
+                        quint16 port, quint64 delayNs, quint8 priority);
+    int queuedPackets() const;
+    void clear();
     // 获取各优先级队列长度
     QVector<int> getQueueLengths() const;
     // 获取各优先级平均排队时延
@@ -36,15 +43,13 @@ public:
     quint8 generatePriority() const;
 
 signals:
-    // 立即发送信号
-    void sendImmediately(const QByteArray &packet, const QHostAddress &dest, quint16 port, quint64 delayNs);
     // 队列长度变化信号
     void queueLengthChanged(int priority, int length);
+    void packetDispatched();
 
 private:
     // 数据包信息结构体
     struct PacketInfo {
-        qint64 sendTime;        // 计划发送时间
         QByteArray packet;      // 数据包内容
         QHostAddress dest;      // 目标地址
         quint16 port;           // 目标端口
@@ -62,8 +67,7 @@ private:
 
     // 私有方法
     void processQueues();        // 处理队列
-    void processFifo();         // FIFO 调度
-    void processWfq();          // WFQ 调度
+    int nextPriority() const;
 
     HighResClock m_clock;       // 高精度时钟
     QTimer *m_processTimer;     // 定时器用于定期检查队列
@@ -72,6 +76,14 @@ private:
     SchedulingAlgorithm m_schedulingAlgorithm; // 当前调度算法
     PriorityDistribution m_priorityDistribution; // 当前优先级分布
     qint64 m_totalPacketsProcessed; // 总处理数据包数
+    QElapsedTimer m_pacingClock;
+    qint64 m_nextSendNs = 0;
+    double m_rateMbps = 10.0;
+    int m_intervalMs = 0;
+    int m_queuedPackets = 0;
+    int m_wfqCursor = 0;
+    bool m_tcpMode = false;
+    std::function<bool(const QByteArray &, const QHostAddress &, quint16, quint64)> m_dispatcher;
 };
 
 #endif

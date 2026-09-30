@@ -12,16 +12,20 @@
 #include <QDebug>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QDir>
+#include <QSaveFile>
 #include <QQueue>
 #include <QLabel>
 #include <QtEndian>
 #include <QPalette>
 #include <QPainter>
+#include <limits>
 
 ReceiverWindow::ReceiverWindow(QWidget *parent)
     : QMainWindow(parent), m_receiverSocket(nullptr), m_tcpServer(nullptr),
     m_packetCounter(0), m_expectedSequence(0), m_firstSequence(0),
-    m_isReceivingFile(false), m_fileSize(0), m_receivedSize(0),
+    m_isReceivingFile(false),
     m_latencyPointIndex(0),
     m_delayThreshold(1000),          // 默认处理时延阈值100ms
     m_abnormalCountThreshold(3),    // 默认连续3次超限告警
@@ -89,11 +93,11 @@ void ReceiverWindow::setupUI()
     m_startButton = new QPushButton("开始接收", this);
     m_stopButton = new QPushButton("停止接收", this);
     m_stopButton->setEnabled(false);
-    // m_saveFileButton = new QPushButton("保存文件", this);
-    //m_saveFileButton->setEnabled(false);
+    m_saveFileButton = new QPushButton("保存文件", this);
+    m_saveFileButton->setEnabled(false);
     configLayout->addWidget(m_startButton);
     configLayout->addWidget(m_stopButton);
-    //configLayout->addWidget(m_saveFileButton);
+    configLayout->addWidget(m_saveFileButton);
     mainLayout->addWidget(configGroup);
 
     // 状态和告警信息
@@ -181,7 +185,7 @@ void ReceiverWindow::setupUI()
     // 信号连接
     connect(m_startButton, &QPushButton::clicked, this, &ReceiverWindow::onStartClicked);
     connect(m_stopButton, &QPushButton::clicked, this, &ReceiverWindow::onStopClicked);
-    //connect(m_saveFileButton, &QPushButton::clicked, this, &ReceiverWindow::onSaveFileClicked);
+    connect(m_saveFileButton, &QPushButton::clicked, this, &ReceiverWindow::onSaveFileClicked);
     connect(m_protocolCombo, &QComboBox::currentTextChanged, this, &ReceiverWindow::onProtocolChanged);
     // 阈值设置信号连接
     connect(m_delayThresholdSpin, QOverload<int>::of(&QSpinBox::valueChanged),
@@ -194,10 +198,8 @@ void ReceiverWindow::onProtocolChanged(const QString &protocol)
 {
     if (protocol == "TCP") {
         m_listenAddressEdit->setPlaceholderText("请输入本地IP地址（例如 127.0.0.1 或 192.168.1.100）");
-        //m_saveFileButton->setEnabled(false);
     } else {
         m_listenAddressEdit->setPlaceholderText("请输入监听地址（例如 239.255.0.1 或 127.0.0.1）");
-        //m_saveFileButton->setEnabled(false);
     }
 }
 
@@ -289,6 +291,9 @@ void ReceiverWindow::onStartClicked()
     m_packetCounter = 0;
     m_expectedSequence = 0;
     m_firstSequence = 0;
+    m_receivedSequences.clear();
+    m_batchMap.clear();
+    m_clientBuffers.clear();
     m_packetTable->setRowCount(0);
     m_packetLossLabel->setText("丢包率: 0.00%");
     resetFileReceiving();
@@ -340,6 +345,7 @@ void ReceiverWindow::onStopClicked()
             }
         }
         m_tcpClients.clear();
+        m_clientBuffers.clear();
         m_tcpServer->close();
         m_tcpServer->deleteLater();
         m_tcpServer = nullptr;
@@ -347,10 +353,11 @@ void ReceiverWindow::onStopClicked()
     m_statusLabel->setText("状态: 已停止");
     m_startButton->setEnabled(true);
     m_stopButton->setEnabled(false);
-    //m_saveFileButton->setEnabled(false);
     m_packetCounter = 0;
     m_expectedSequence = 0;
     m_firstSequence = 0;
+    m_receivedSequences.clear();
+    m_batchMap.clear();
     m_packetLossLabel->setText("丢包率: 0.00%");
     resetFileReceiving();
     resetAlertStatus();  // 重置告警状态
@@ -432,14 +439,135 @@ void ReceiverWindow::checkDurationAbnormal(double durationMs, quint32 batchNumbe
 
 void ReceiverWindow::resetFileReceiving()
 {
+    m_fileTransfers.clear();
+    m_completedRanges.clear();
     m_isReceivingFile = false;
-    m_fileSize = 0;
-    m_receivedSize = 0;
-    m_fileName.clear();
-    if (m_file.isOpen()) {
-        m_file.close();
+}
+
+void ReceiverWindow::failFileTransfer(quint32 batchNumber, const QString &reason)
+{
+    qWarning() << "文件批次" << batchNumber << reason;
+    m_fileTransfers.remove(batchNumber);
+    m_isReceivingFile = !m_fileTransfers.isEmpty();
+    m_statusLabel->setText(QString("状态: 文件批次 %1 失败：%2").arg(batchNumber).arg(reason));
+}
+
+void ReceiverWindow::handleFilePacket(const PacketInfo &info)
+{
+    constexpr quint64 maxBufferedBytes = 64ULL * 1024 * 1024;
+    if (info.totalPacketCount == 0) {
+        failFileTransfer(info.batchNumber, "包数无效");
+        return;
     }
-    //m_saveFileButton->setEnabled(false);
+
+    auto finished = m_completedRanges.constFind(info.batchNumber);
+    if (finished != m_completedRanges.cend()) {
+        if (info.isFileHeader) {
+            // 发送进程重启后可能重新使用批次号与序列号；新文件头开始新传输。
+            m_completedRanges.remove(info.batchNumber);
+        } else if (info.sequence >= finished.value().first && info.sequence <= finished.value().second) {
+            return; // UDP重发的旧分片
+        }
+    }
+
+    FileTransfer &transfer = m_fileTransfers[info.batchNumber];
+    m_isReceivingFile = true;
+    if (transfer.totalPackets == 0) transfer.totalPackets = info.totalPacketCount;
+    if (transfer.totalPackets != info.totalPacketCount) {
+        failFileTransfer(info.batchNumber, "分片总数不一致");
+        return;
+    }
+
+    if (info.isFileHeader) {
+        if (transfer.headerReceived) return; // 重复的文件头
+        if (info.fileData.size() > 4096 ||
+            info.sequence > std::numeric_limits<quint64>::max() - (transfer.totalPackets - 1)) {
+            failFileTransfer(info.batchNumber, "文件头无效");
+            return;
+        }
+        QDataStream metadata(info.fileData);
+        metadata.setByteOrder(QDataStream::LittleEndian);
+        quint64 fileSize = 0;
+        QString fileName;
+        metadata >> fileSize >> fileName;
+        fileName.replace('\\', '/');
+        fileName = QFileInfo(fileName).fileName();
+        if (metadata.status() != QDataStream::Ok || fileName.isEmpty() || metadata.device()->bytesAvailable() != 0) {
+            failFileTransfer(info.batchNumber, "无法解析文件名或大小");
+            return;
+        }
+        QSharedPointer<QTemporaryFile> tempFile(
+            new QTemporaryFile(QDir::tempPath() + "/qt_receiver_XXXXXX.part"));
+        if (!tempFile->open()) {
+            failFileTransfer(info.batchNumber, "无法创建临时文件");
+            return;
+        }
+        transfer.headerReceived = true;
+        transfer.headerSequence = info.sequence;
+        transfer.fileSize = fileSize;
+        transfer.fileName = fileName;
+        transfer.tempFile = tempFile;
+        const quint64 lastSequence = info.sequence + transfer.totalPackets - 1;
+        for (auto it = transfer.pendingChunks.begin(); it != transfer.pendingChunks.end();) {
+            if (it.key() <= info.sequence || it.key() > lastSequence) {
+                transfer.bufferedBytes -= static_cast<quint64>(it.value().size());
+                it = transfer.pendingChunks.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    } else {
+        if (transfer.headerReceived) {
+            const quint64 firstData = transfer.headerSequence + 1;
+            const quint64 lastData = transfer.headerSequence + transfer.totalPackets - 1;
+            if (info.sequence < firstData || info.sequence > lastData ||
+                info.sequence < firstData + transfer.writtenPackets) return;
+        }
+        if (transfer.pendingChunks.contains(info.sequence)) return;
+        if (transfer.bufferedBytes + static_cast<quint64>(info.fileData.size()) > maxBufferedBytes) {
+            failFileTransfer(info.batchNumber, "等待缺失分片时缓存超过 64 MiB");
+            return;
+        }
+        transfer.pendingChunks.insert(info.sequence, info.fileData);
+        transfer.bufferedBytes += static_cast<quint64>(info.fileData.size());
+    }
+
+    if (!transfer.headerReceived) return;
+    while (transfer.writtenPackets < transfer.totalPackets - 1) {
+        const quint64 nextSequence = transfer.headerSequence + 1 + transfer.writtenPackets;
+        auto it = transfer.pendingChunks.find(nextSequence);
+        if (it == transfer.pendingChunks.end()) break;
+        const QByteArray chunk = it.value();
+        if (static_cast<quint64>(chunk.size()) > transfer.fileSize - transfer.writtenBytes ||
+            transfer.tempFile->write(chunk) != chunk.size()) {
+            failFileTransfer(info.batchNumber, "文件长度超限或临时文件写入失败");
+            return;
+        }
+        transfer.writtenBytes += static_cast<quint64>(chunk.size());
+        transfer.writtenPackets++;
+        transfer.bufferedBytes -= static_cast<quint64>(chunk.size());
+        transfer.pendingChunks.erase(it);
+    }
+
+    if (transfer.writtenPackets == transfer.totalPackets - 1) {
+        if (transfer.writtenBytes != transfer.fileSize || !transfer.tempFile->flush()) {
+            failFileTransfer(info.batchNumber, "接收字节数与文件大小不符");
+            return;
+        }
+        // 先物化文件名；Linux 上临时文件可能最初没有目录项。
+        transfer.tempFile->fileName();
+        transfer.tempFile->close();
+        const QString completedName = transfer.fileName;
+        m_completedFiles.enqueue({completedName, transfer.tempFile});
+        m_completedRanges.insert(info.batchNumber,
+                                 qMakePair(transfer.headerSequence,
+                                           transfer.headerSequence + transfer.totalPackets - 1));
+        m_fileTransfers.remove(info.batchNumber);
+        m_isReceivingFile = !m_fileTransfers.isEmpty();
+        m_saveFileButton->setEnabled(true);
+        m_statusLabel->setText(QString("状态: 文件 %1 接收完成，可点击保存文件（待保存 %2 个）")
+                                   .arg(completedName).arg(m_completedFiles.size()));
+    }
 }
 
 void ReceiverWindow::onNewConnection()
@@ -459,6 +587,7 @@ void ReceiverWindow::onNewConnection()
         connect(client, &QTcpSocket::readyRead, this, &ReceiverWindow::processTcpData);
         connect(client, &QTcpSocket::disconnected, this, [this, client]() {
             m_tcpClients.removeOne(client);
+            m_clientBuffers.remove(client);
             client->deleteLater();
             qDebug() << "客户端断开连接:" << client->peerAddress().toString();
             if (m_isReceivingFile && m_tcpClients.isEmpty()) {
@@ -469,6 +598,7 @@ void ReceiverWindow::onNewConnection()
         connect(client, &QTcpSocket::errorOccurred, this, [this, client](QAbstractSocket::SocketError) {
             qDebug() << "客户端错误:" << client->errorString();
             m_tcpClients.removeOne(client);
+            m_clientBuffers.remove(client);
             client->deleteLater();
             if (m_isReceivingFile && m_tcpClients.isEmpty()) {
                 resetFileReceiving();
@@ -481,22 +611,34 @@ void ReceiverWindow::onNewConnection()
 
 void ReceiverWindow::onSaveFileClicked()
 {
-    if (!m_fileName.isEmpty()) {
-        QString savePath = QFileDialog::getSaveFileName(this, tr("保存文件"), m_fileName, QString("所有文件 (*.*)"));
-        if (savePath.isEmpty()) return;
-        if (m_file.isOpen()) {
-            m_file.flush();
-            m_file.close();
-        }
-        QString tempFilePath = m_file.fileName();
-        if (QFile::exists(tempFilePath) && QFile::copy(tempFilePath, savePath)) {
-            qDebug() << "文件成功保存至:" << savePath;
-            m_statusLabel->setText(QString("状态: 文件 %1 保存成功").arg(savePath));
-        } else {
-            qWarning() << "文件保存失败:" << savePath;
-            m_statusLabel->setText(QString("状态: 文件 %1 保存失败").arg(savePath));
+    if (m_completedFiles.isEmpty()) return;
+    const CompletedFile &completed = m_completedFiles.head();
+
+    const QString savePath = QFileDialog::getSaveFileName(
+        this, tr("保存文件"), completed.fileName, tr("所有文件 (*.*)"));
+    if (savePath.isEmpty()) return;
+
+    QFile source(completed.tempFile->fileName());
+    QSaveFile destination(savePath);
+    if (!source.open(QIODevice::ReadOnly) || !destination.open(QIODevice::WriteOnly)) {
+        m_statusLabel->setText("状态: 无法打开临时文件或保存位置");
+        return;
+    }
+    while (!source.atEnd()) {
+        const QByteArray block = source.read(1024 * 1024);
+        if (block.isEmpty() || destination.write(block) != block.size()) {
+            destination.cancelWriting();
+            m_statusLabel->setText("状态: 保存文件失败");
+            return;
         }
     }
+    if (!destination.commit()) {
+        m_statusLabel->setText("状态: 保存文件失败");
+        return;
+    }
+    m_completedFiles.dequeue();
+    m_saveFileButton->setEnabled(!m_completedFiles.isEmpty());
+    m_statusLabel->setText(QString("状态: 文件 %1 保存成功").arg(savePath));
 }
 
 void ReceiverWindow::updatePacketLossRate()
@@ -528,6 +670,13 @@ void ReceiverWindow::processPendingDatagrams()
         quint16 senderPort;
         m_receiverSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
 
+        constexpr int headerSize = 32;
+        constexpr int crcSize = 2;
+        if (datagram.size() < headerSize + crcSize) {
+            qWarning() << "UDP数据包过短";
+            continue;
+        }
+
         QDataStream stream(datagram);
         quint16 header;
         quint64 sequence;
@@ -550,9 +699,17 @@ void ReceiverWindow::processPendingDatagrams()
             continue;
         }
 
+        if (payloadSize != static_cast<quint32>(datagram.size() - headerSize - crcSize)) {
+            qWarning() << "UDP负载长度不匹配";
+            continue;
+        }
+
         QByteArray payload;
         payload.resize(payloadSize);
-        stream.readRawData(payload.data(), payloadSize);
+        if (stream.readRawData(payload.data(), payloadSize) != static_cast<int>(payloadSize)) {
+            qWarning() << "UDP负载不完整";
+            continue;
+        }
         stream >> crc;
 
         quint16 calculatedCrc = qChecksum(datagram.constData(), datagram.size() - sizeof(quint16));
@@ -597,7 +754,7 @@ void ReceiverWindow::processPendingDatagrams()
 
         double latencyMs = (now - timestamp) / 1000000.0;
         qDebug() << now;
-        bool isFilePacket = (packetType == 1);
+        bool isFilePacket = (packetType == 1 || packetType == 2);
 
         PacketInfo info;
         info.counter = (isNewPacket) ? ++m_packetCounter : m_packetCounter;
@@ -607,10 +764,12 @@ void ReceiverWindow::processPendingDatagrams()
         info.timestamp = timestamp;
         info.latencyMs = latencyMs;
         info.isFilePacket = isFilePacket;
+        info.isFileHeader = (packetType == 2);
         info.fileData = payload;
         info.priority = priority;
         info.enqueueTime = now;
         info.batchNumber = batchNumber;
+        info.totalPacketCount = totalPacketCount;
         info.clientSocket = nullptr;
         info.senderAddress = sender;
         // 开始：新增，记录数据包大小（datagram包含整个数据包的字节数）
@@ -731,7 +890,7 @@ void ReceiverWindow::processTcpData()
             batch.receivedPacketCount++;
 
             double latencyMs = (now - timestamp) / 1'000'000.0;
-            bool isFilePacket = (packetType == 1);
+            bool isFilePacket = (packetType == 1 || packetType == 2);
 
             PacketInfo info = {
                 ++m_packetCounter,
@@ -741,10 +900,12 @@ void ReceiverWindow::processTcpData()
                 timestamp,
                 latencyMs,
                 isFilePacket,
+                packetType == 2,
                 payload,
                 priority,
                 now,
                 batchNumber,
+                totalPacketCount,
                 client,
                 QHostAddress(),
                 static_cast<quint32>(packetSize + sizeof(quint32)) // 新增：TCP 额外的前导大小字段
@@ -769,10 +930,13 @@ void ReceiverWindow::processTcpData()
 
 void ReceiverWindow::processPriorityQueues()
 {
-    qint64 currentTime = m_clock.currentTime();
+    const qint64 sliceStartTime = m_clock.currentTime();
+    qint64 currentTime = sliceStartTime;
 
     for (int priority = 0; priority < 4; ++priority) {
         while (!m_priorityQueues[priority].isEmpty()) {
+            currentTime = m_clock.currentTime();
+            const qint64 packetWorkStartNs = currentTime;
             PacketInfo info = m_priorityQueues[priority].dequeue();
             m_queueLengths[priority]--;
             m_queueLengthLabels[priority]->setText(QString::number(m_queueLengths[priority]));
@@ -786,23 +950,18 @@ void ReceiverWindow::processPriorityQueues()
 
             addPacketToTable(info.counter, info.sender, info.senderPort, info.sequence,
                              info.timestamp, info.latencyMs, info.isFilePacket, info.priority);
+            if (info.isFilePacket) handleFilePacket(info);
 
             // 批次处理计数及耗时统计
             if (m_batchMap.contains(info.batchNumber)) {
                 BatchInfo &batch = m_batchMap[info.batchNumber];
                 batch.processedPacketCount++;
                 batch.endTime = currentTime;
+                batch.processingNs += qMax<qint64>(0, m_clock.currentTime() - packetWorkStartNs);
 
                 if (batch.processedPacketCount == batch.totalPacketCount) {
-                    // 使用队列中最老的包的入队时间作为起始时间
-                    double durationMs = queueDelayMs; // 直接使用当前包的排队时间
-                    if (batch.totalPacketCount == 1) {
-                        // 单一包批次，直接使用该包的排队时间
-                        durationMs = queueDelayMs;
-                    } else {
-                        // 多包批次，使用当前时间减去批次中最早的入队时间
-                        durationMs = (currentTime - batch.startTime) / 1'000'000.0;
-                    }
+                    // 按逐包本地处理时间求和，不包含发送端限速导致的包间等待。
+                    double durationMs = batch.processingNs / 1'000'000.0;
 
                     qDebug() << "批次" << info.batchNumber
                              << "所有包处理完成，处理阶段耗时：" << durationMs << " ms";
@@ -822,10 +981,6 @@ void ReceiverWindow::processPriorityQueues()
 
                     m_batchMap.remove(info.batchNumber);
                 }
-            }
-
-            if (info.isFilePacket && m_isReceivingFile) {
-                // 文件写入逻辑保持不变
             }
 
             //开始：新增： 吞吐量计算（对所有数据包）
@@ -863,7 +1018,7 @@ void ReceiverWindow::processPriorityQueues()
             updatePacketLossRate();
             QMetaObject::invokeMethod(this, "updateLatencyChart", Qt::QueuedConnection);
             // 控制处理速度，避免阻塞UI
-            if (m_clock.currentTime() - currentTime > 5'000'000) break; // 5ms
+            if (m_clock.currentTime() - sliceStartTime > 5'000'000) break; // 5ms
             QMetaObject::invokeMethod(this, "updateThroughputChart", Qt::QueuedConnection); //开始： 新增
         }
     }

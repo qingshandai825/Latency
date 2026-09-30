@@ -26,6 +26,7 @@ public:
                                   bool isFirstPacket = false, const QString &fileName = QString(),
                                   quint64 fileSize = 0, quint8 priority = 0, quint32 totalPacketCount=0, quint32 batchNumber=0);
     bool sendPacket(const QByteArray &packet, const QHostAddress &dest, quint16 port, quint64 delayNs);
+    bool canAcceptPacket(qint64 packetBytes) const;
     void resetSequence();
     QVector<QPair<qint64, qint64>> getSentPackets();
     void clearSentPackets();

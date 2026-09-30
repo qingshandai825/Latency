@@ -50,7 +50,7 @@ private:
     void processUdpBuffer();    // UDP缓冲区处理
 
     // ✅ 新增函数：用于记录/统计批次耗时
-    void processBatchInfo(quint32 batchNumber, quint32 totalCount);
+    void processBatchInfo(quint32 batchNumber, quint32 totalCount, qint64 localProcessingNs);
 
     QUdpSocket *udpSocket = nullptr;
     QTcpServer *tcpServer = nullptr;
@@ -71,12 +71,12 @@ private:
     // ✅ 新增：记录批次信息
     QMap<quint32, QElapsedTimer> batchTimerMap;
     QMap<quint32, int> batchPacketCountMap;
-    QMap<quint32, QByteArray> batchPayloads;
 
     quint32 currentBatchNumber = -1;
     quint32 batchPacketCount = 0;
     quint32 batchTotalPacketCount = 0;
     qint64 batchStartTimeNs = 0;
+    qint64 batchProcessingNs = 0;
     // 新增：存储MainWindow传递的timeMs
     double m_timeMs = 0.0;
     qint64 appendTimeNs;

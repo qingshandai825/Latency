@@ -4,6 +4,7 @@
 #include <QComboBox>
 #include <QTextEdit>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QPushButton>
 #include <QLabel>
 #include <QTableWidget>
@@ -94,6 +95,8 @@ private:
     QSpinBox *m_packetSizeSpin;
     QSpinBox *m_packetCountSpin;
     QSpinBox *m_intervalSpin;
+    QComboBox *m_pacingModeCombo;
+    QDoubleSpinBox *m_targetMbpsSpin;
     QComboBox *m_delayModeCombo;
     QComboBox *m_distanceCombo;
     QPushButton *m_configureButton;

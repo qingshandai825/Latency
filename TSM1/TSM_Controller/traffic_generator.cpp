@@ -101,7 +101,8 @@ QByteArray TrafficGenerator::generatePacket(quint32 payloadSize, quint8 priority
 
     packet.append(payload);
     quint16 crc = qChecksum(packet.constData(), packet.size());
-    stream << crc;
+    QDataStream crcStream(&packet, QIODevice::WriteOnly | QIODevice::Append);
+    crcStream << crc;
     // 解析包头打印，确认写入是否正确
     QDataStream verifyStream(packet);
     quint16 verifyHeader;
@@ -155,7 +156,7 @@ QByteArray TrafficGenerator::generateFilePacket(QFile &file, quint32 payloadSize
 
     quint64 seq = m_sequence++;
     qint64 timestamp = m_clock.currentTime();
-    quint8 packetType = 1; // 文件数据包
+    quint8 packetType = isFirstPacket ? 2 : 1; // 2: 文件头，1: 文件数据
     stream << quint16(0xAA55)
            << seq
            << timestamp
@@ -291,6 +292,12 @@ bool TrafficGenerator::sendPacket(const QByteArray &packet, const QHostAddress &
         qWarning() << "数据包发送失败:" << (m_protocol == UDP ? m_udpSocket->errorString() : m_tcpSocket->errorString());
         return false;
     }
+}
+
+bool TrafficGenerator::canAcceptPacket(qint64 packetBytes) const
+{
+    return m_protocol != TCP ||
+           (m_tcpSocket && m_tcpSocket->bytesToWrite() + packetBytes <= 1024 * 1024);
 }
 
 void TrafficGenerator::resetSequence()

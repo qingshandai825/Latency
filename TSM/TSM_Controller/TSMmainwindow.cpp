@@ -414,7 +414,7 @@ TSMMainWindow::TSMMainWindow(QWidget *parent) : QWidget(parent) {
 
     // 数据包参数布局
     m_packetSizeSpin = new QSpinBox(this);
-    m_packetSizeSpin->setRange(1, 65535);
+    m_packetSizeSpin->setRange(1, 65473);
     m_packetSizeSpin->setValue(1024);
     m_packetCountSpin = new QSpinBox(this);
     m_packetCountSpin->setRange(1, 1000000);
@@ -428,9 +428,30 @@ TSMMainWindow::TSMMainWindow(QWidget *parent) : QWidget(parent) {
     paramLayout->addWidget(m_packetSizeSpin);
     paramLayout->addWidget(new QLabel("数据包数量:"));
     paramLayout->addWidget(m_packetCountSpin);
-    paramLayout->addWidget(new QLabel("间隔 (ms):"));
-    paramLayout->addWidget(m_intervalSpin);
     mainLayout->addLayout(paramLayout);
+
+    m_pacingModeCombo = new QComboBox(this);
+    m_pacingModeCombo->addItem("目标速率", "rate");
+    m_pacingModeCombo->addItem("固定间隔", "interval");
+    m_targetMbpsSpin = new QDoubleSpinBox(this);
+    m_targetMbpsSpin->setRange(0.001, 10000.0);
+    m_targetMbpsSpin->setDecimals(3);
+    m_targetMbpsSpin->setValue(10.0);
+    m_targetMbpsSpin->setSuffix(" Mbps");
+    m_intervalSpin->setEnabled(false);
+    connect(m_pacingModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+        const bool fixed = m_pacingModeCombo->itemData(index).toString() == "interval";
+        m_intervalSpin->setEnabled(fixed);
+        m_targetMbpsSpin->setEnabled(!fixed);
+    });
+    QHBoxLayout *pacingLayout = new QHBoxLayout;
+    pacingLayout->addWidget(new QLabel("发送控制:"));
+    pacingLayout->addWidget(m_pacingModeCombo);
+    pacingLayout->addWidget(m_targetMbpsSpin);
+    pacingLayout->addWidget(new QLabel("间隔 (ms):"));
+    pacingLayout->addWidget(m_intervalSpin);
+    mainLayout->addLayout(pacingLayout);
 
     // 延迟模式布局
 
@@ -642,6 +663,8 @@ void TSMMainWindow::onConfigureClicked() {
 
     params["packetSize"] = m_packetSizeSpin->value();
     params["packetCount"] = m_packetCountSpin->value();
+    params["pacingMode"] = m_pacingModeCombo->currentData().toString();
+    params["targetMbps"] = m_targetMbpsSpin->value();
     params["interval"] = m_intervalSpin->value();
 
 
@@ -676,6 +699,8 @@ void TSMMainWindow::onSendFileClicked() {
     QVariantMap params;
     params["filePath"] = filePath;
     params["packetSize"] = m_packetSizeSpin->value();
+    params["pacingMode"] = m_pacingModeCombo->currentData().toString();
+    params["targetMbps"] = m_targetMbpsSpin->value();
     params["interval"] = m_intervalSpin->value();
     m_packetLogTable->setRowCount(0);
     QPalette normalPalette = m_statusLabel->palette();
